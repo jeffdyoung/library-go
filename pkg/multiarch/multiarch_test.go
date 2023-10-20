@@ -56,3 +56,27 @@ func TestCreateArch(t *testing.T) {
 		}
 	}
 }
+func TestImageArch(t *testing.T) {
+	maImage := "quay.io/multi-arch/sushy-tools:muiltarch"
+	x86Image := "quay.io/multi-arch/sushy-tools:x86"
+	armImage := "quay.io/multi-arch/sushy-tools:arm"
+
+	pullSecret := "{}"
+	// MF x86 + arm64
+	arch, mflist, err := GetImagePlatforms(maImage, pullSecret)
+	if err != nil {
+		t.Errorf("maImage got %s expected %s", arch, mflist, err)
+	}
+
+	// Single arch x86
+	arch, mflist, err = GetImagePlatforms(x86Image, pullSecret)
+	if err != nil {
+		t.Errorf("x86Image %s %s", arch, mflist, err)
+	}
+
+	// Single arch arm64
+	arch, mflist, err = GetImagePlatforms(armImage, pullSecret)
+	if err != nil {
+		t.Logf("armImage %s %b %s", arch, mflist, err)
+	}
+}
