@@ -6,28 +6,27 @@ import (
 
 func TestInvalidArch(t *testing.T) {
 	testarch := "x86"
-	cpuarch, err := GetArchitecture(testarch)
+	cpuarch, err := GetCPUArch(testarch)
 	if err == nil {
-		t.Errorf("Shouldn't create CPUArchitecture from string %s", testarch)
+		t.Errorf("testarch %s, should not be a valid CPUArch %v", testarch, cpuarch)
 	}
-	t.Logf("Can't create CPUArchitecture %s from string %s", cpuarch, testarch)
 }
+
 func TestEmptyArch(t *testing.T) {
 	testarch := ""
-	cpuarch, err := GetArchitecture(testarch)
+	cpuarch, err := GetCPUArch(testarch)
 	if err == nil {
-		t.Errorf("Shouldn't create CPUArchitecture from string %s", testarch)
+		t.Errorf("testarch %s, should not be a valid CPUArch %v", testarch, cpuarch)
 	}
-	t.Logf("Can't create CPUArchitecture %s from string %s", cpuarch, testarch)
 }
 func TestCreateArch(t *testing.T) {
-	rpmarch := []string{"x86_64", "aarch64", "s390x", "ppc64le"}
-	goarch := []string{"amd64", "arm64", "s390x", "ppc64le"}
+	rpmarch := []string{"x86_64", "aarch64", "s390x", "ppc64le", "i386"}
+	goarch := []string{"amd64", "arm64", "s390x", "ppc64le", "386"}
 
 	for i, s := range rpmarch {
-		cpuarch, err := GetArchitecture(s)
+		cpuarch, err := GetCPUArch(s)
 		if err != nil {
-			t.Errorf("Can't create CPUArchiture from string %s", s)
+			t.Errorf("%s", err)
 		}
 		wantrpm := rpmarch[i]
 		wantgo := goarch[i]
@@ -41,9 +40,9 @@ func TestCreateArch(t *testing.T) {
 	}
 
 	for i, s := range goarch {
-		cpuarch, err := GetArchitecture(s)
+		cpuarch, err := GetCPUArch(s)
 		if err != nil {
-			t.Errorf("Can't create CPUArchiture from string %s", s)
+			t.Errorf("%s", err)
 		}
 		wantrpm := rpmarch[i]
 		wantgo := goarch[i]
@@ -63,20 +62,20 @@ func TestImageArch(t *testing.T) {
 
 	pullSecret := "{}"
 	// MF x86 + arm64
-	arch, mflist, err := GetImagePlatforms(maImage, pullSecret)
+	arch, err := GetImagePlatforms(maImage, pullSecret)
 	if err != nil {
-		t.Errorf("maImage got %s expected %s", arch, mflist, err)
+		t.Errorf("maImage: %s %s ", arch, err)
 	}
 
 	// Single arch x86
-	arch, mflist, err = GetImagePlatforms(x86Image, pullSecret)
+	arch, err = GetImagePlatforms(x86Image, pullSecret)
 	if err != nil {
-		t.Errorf("x86Image %s %s", arch, mflist, err)
+		t.Errorf("x86Image: %s %s ", arch, err)
 	}
 
 	// Single arch arm64
-	arch, mflist, err = GetImagePlatforms(armImage, pullSecret)
+	arch, err = GetImagePlatforms(armImage, pullSecret)
 	if err != nil {
-		t.Logf("armImage %s %b %s", arch, mflist, err)
+		t.Logf("armImage: %s %s ", arch, err)
 	}
 }
