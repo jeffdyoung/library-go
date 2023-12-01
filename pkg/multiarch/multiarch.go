@@ -12,20 +12,12 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-type ImagePlatform struct {
-	PlatformOS
-	CPUArch
-	CPUArchVarient
-}
-type PlatformOS struct {
-	slug string
-}
-type CPUArchVarient struct {
-	slug string
-}
 type CPUArch struct {
 	goArch
 	rpmArch
+	azureArch
+	awsArch
+	gcpArch
 }
 type goArch struct {
 	slug string
@@ -33,14 +25,24 @@ type goArch struct {
 type rpmArch struct {
 	slug string
 }
+type awsArch struct {
+	slug string
+}
+type azureArch struct {
+	slug string
+}
+type gcpArch struct {
+	slug string
+}
 
 var (
-	CPUArchAMD64 = CPUArch{goArch{AMD64}, rpmArch{X8664}}
-	CPUArchARM64 = CPUArch{goArch{ARM64}, rpmArch{AARCH64}}
-	CPUArch386   = CPUArch{goArch{_386}, rpmArch{I386}}
+	CPUArchAMD64 = CPUArch{goArch{AMD64}, rpmArch{X8664}, azureArch{AZUREX64}, awsArch{AMD64}, gcpArch{AMD64}}
+	CPUArchARM64 = CPUArch{goArch{ARM64}, rpmArch{AARCH64}, azureArch{AZUREARM}, awsArch{ARM64}, gcpArch{ARM64}}
+	CPUArch386   = CPUArch{goArch{_386}, rpmArch{I386}, azureArch{I386}, awsArch{NOARCH}, gcpArch{NOARCH}}
 )
 
 const (
+	NOARCH = ""
 	// GOARCH values from:https://go.dev/src/go/build/syslist.go
 	AMD64       = "amd64"
 	ARM64       = "arm64"
@@ -93,31 +95,32 @@ const (
 	WASIP1    = "wasip1"
 	WINDOWS   = "windows"
 	Z0S       = "zos"
+
+	// Additional cloud specific cpu architectures
+	// https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_ProcessorInfo.html
+	AWSARM64_MAC = "arm64_mac"
+	AWSX86_MAC   = "x86_64_mac"
+
+	// https://learn.microsoft.com/en-us/rest/api/compute/virtual-machine-images/get?tabs=HTTP#architecturetypes
+	AZUREX64 = "x64"
+	AZUREARM = "Arm64"
 )
 
-func (image ImagePlatform) GetFullVariant() string {
-	fullVariant := image.GetShortVariant()
-	if image.Varient() != "" {
-		fullVariant = fullVariant + "/" + image.Varient()
-	}
-	return fullVariant
-}
-func (image ImagePlatform) GetShortVariant() string {
-	return image.OS() + "/" + image.CPUArch.GoArch()
-}
-func (image ImagePlatform) OS() string {
-	return fmt.Sprintf("%s", image.PlatformOS.slug)
-}
-func (image ImagePlatform) Varient() string {
-	return fmt.Sprintf("%s", image.CPUArchVarient.slug)
-}
 func (a CPUArch) GoArch() string {
 	return fmt.Sprintf("%s", a.goArch.slug)
 }
 func (a CPUArch) RPMArch() string {
 	return fmt.Sprintf("%s", a.rpmArch.slug)
 }
-
+func (a CPUArch) AWSArch() string {
+	return fmt.Sprintf("%s", a.awsArch.slug)
+}
+func (a CPUArch) GCPArch() string {
+	return fmt.Sprintf("%s", a.gcpArch.slug)
+}
+func (a CPUArch) AzureArch() string {
+	return fmt.Sprintf("%s", a.azureArch.slug)
+}
 func GetOs(os string) (PlatformOS, error) {
 	switch os {
 	case AIX, ANDROID, DARWIN, DRAGONFLY, FREEBSD, HURD, ILLUMOS, IOS, JS, LINUX, NACL, NETBSD, OPENBSD, PLAN9, SOLARIS, WASIP1, WINDOWS, Z0S:
@@ -127,20 +130,33 @@ func GetOs(os string) (PlatformOS, error) {
 	}
 }
 
-// GetArchitecture: Returns a CPUARCH object with goArch, and rpmArch
+// GetCPUArch: Returns a CPUARCH object with goArch, rpmArch, azureArch, awsArch, gcpArch
+// if an arch isn't supported on a platform like ppc64le on AWS, then the corresspoding <platform>Arch is ""
 func GetCPUArch(arch string) (CPUArch, error) {
 	switch arch {
-	case X8664, AMD64:
+	case X8664, AMD64, AZUREX64:
 		return CPUArchAMD64, nil
-	case AARCH64, ARM64:
+	case AARCH64, ARM64, AZUREARM:
 		return CPUArchARM64, nil
 	case _386, I386:
 		return CPUArch386, nil
 	case AMD64P32, ARM, ARMBE, ARM64BE, LOONG64, MIPS, MIPSLE, MIPS64, MIPS64LE, MIPS64P32, MIPS64P32LE, PPC, PPC64, PPC64LE, RISCV, RISCV64, S390, S390X, SPARC, SPARC64, WASM:
-		return CPUArch{goArch{arch}, rpmArch{arch}}, nil
+		return CPUArch{goArch{arch}, rpmArch{arch}, azureArch{NOARCH}, awsArch{NOARCH}, gcpArch{NOARCH}}, nil
 	default:
 		return CPUArch{}, fmt.Errorf("%s is not a known CPUArch", arch)
 	}
+}
+
+type ImagePlatform struct {
+	PlatformOS
+	CPUArch
+	CPUArchVarient
+}
+type PlatformOS struct {
+	slug string
+}
+type CPUArchVarient struct {
+	slug string
 }
 
 // GetImagePlatforms returns an image's platforms linux/amd64, linux/arm/v7, linux/arm64/v8, linux/ppc64le, linux/s390x
@@ -238,4 +254,20 @@ func GetImagePlatforms(containerImage, pullSecret string) (platforms []ImagePlat
 	platform := ImagePlatform{os, arch, CPUArchVarient{config.Variant}}
 	platforms = append(platforms, platform)
 	return platforms, err
+}
+func (image ImagePlatform) GetFullVariant() string {
+	fullVariant := image.GetShortVariant()
+	if image.Varient() != "" {
+		fullVariant = fullVariant + "/" + image.Varient()
+	}
+	return fullVariant
+}
+func (image ImagePlatform) GetShortVariant() string {
+	return image.OS() + "/" + image.CPUArch.GoArch()
+}
+func (image ImagePlatform) OS() string {
+	return fmt.Sprintf("%s", image.PlatformOS.slug)
+}
+func (image ImagePlatform) Varient() string {
+	return fmt.Sprintf("%s", image.CPUArchVarient.slug)
 }
